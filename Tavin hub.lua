@@ -14,8 +14,8 @@ local Cooldown = 0
 local Ball = nil
 
 local function GetBall()
-    for _, v in ipairs(workspace.Balls:GetChildren()) do
-        if v:GetAttribute("realBall") then
+    for _, v in ipairs(workspace:GetChildren()) do
+        if v:IsA("BasePart") and (v.Name == "Ball" or v:GetAttribute("realBall")) then
             return v
         end
     end
@@ -25,17 +25,13 @@ end
 local function ShouldParry(Ball, HRP)
     if not Ball or not HRP then return false end
     local Distance = (HRP.Position - Ball.Position).Magnitude
-    local Speed = Ball.zoomies.VectorVelocity.Magnitude
-    local Direction = Ball.zoomies.VectorVelocity.Unit
-    local RelativePos = Ball.Position - HRP.Position
+    local Speed = Ball:FindFirstChild("zoomies") and Ball.zoomies.VectorVelocity.Magnitude or 0
+    if Speed == 0 then return false end
     local PredictedPos = Ball.Position + Ball.zoomies.VectorVelocity * (Distance / Speed)
-    local CurveFactor = (PredictedPos - Ball.Position).Magnitude > 0.5 and true or false
-    if Ball:GetAttribute("target") == LocalPlayer.Name and Distance / Speed <= 0.55 then
-        if CurveFactor then
-            return Distance / Speed <= 0.45
-        else
-            return true
-        end
+    local CurveFactor = (PredictedPos - Ball.Position).Magnitude > 0.3
+    local IsTargeted = Ball:GetAttribute("target") == LocalPlayer.Name or Distance < 15
+    if IsTargeted and Distance / Speed <= 0.65 then
+        return CurveFactor and Distance / Speed <= 0.55 or true
     end
     return false
 end
@@ -45,8 +41,9 @@ local function AutoParry()
     Ball = GetBall()
     local HRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not Ball or not HRP then return end
-    if ShouldParry(Ball, HRP) and not Parried and tick() - Cooldown >= 0.5 then
+    if ShouldParry(Ball, HRP) and not Parried and tick() - Cooldown >= 0.35 then
         VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+        wait(0.01)
         VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
         Parried = true
         Cooldown = tick()
@@ -61,37 +58,40 @@ local function AutoSpam()
     local HRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not Ball or not HRP then return end
     local Distance = (HRP.Position - Ball.Position).Magnitude
-    if Distance < 10 and tick() - Cooldown >= 0.1 then
+    if Distance < 7 and tick() - Cooldown >= 0.07 then
         VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+        wait(0.01)
         VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
         Cooldown = tick()
     end
 end
 
-workspace.Balls.ChildAdded:Connect(function()
-    Ball = GetBall()
-    if Ball then
+workspace.ChildAdded:Connect(function(child)
+    if child:IsA("BasePart") and (child.Name == "Ball" or child:GetAttribute("realBall")) then
+        Ball = child
         Parried = false
-        Ball:GetAttributeChangedSignal("target"):Connect(function()
-            Parried = false
-        end)
+        if child:GetAttributeChangedSignal("target") then
+            child:GetAttributeChangedSignal("target"):Connect(function()
+                Parried = false
+            end)
+        end
     end
 end)
 
 local Tab = Window:NewTab("Main")
 local Section = Tab:NewSection("Toggles")
 
-Section:NewToggle("Auto Parry", "Automatically parry the ball", function(state)
+Section:NewToggle("Auto Parry", "Rebate a bola automaticamente", function(state)
     AutoParryEnabled = state
-    Library:Notify(state and "Auto Parry Enabled" or "Auto Parry Disabled")
+    Library:Notify(state and "Auto Parry Ativado" or "Auto Parry Desativado")
 end)
 
-Section:NewToggle("Auto Spam", "Spam parry when ball is close", function(state)
+Section:NewToggle("Auto Spam", "Spamma parry quando a bola tá perto", function(state)
     AutoSpamEnabled = state
-    Library:Notify(state and "Auto Spam Enabled" or "Auto Spam Disabled")
+    Library:Notify(state and "Auto Spam Ativado" or "Auto Spam Desativado")
 end)
 
-RunService.PreSimulation:Connect(function()
+RunService.Heartbeat:Connect(function()
     AutoParry()
     AutoSpam()
 end)
@@ -99,4 +99,3 @@ end)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
 end)
-```​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​
